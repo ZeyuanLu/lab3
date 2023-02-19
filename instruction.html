@@ -1,0 +1,687 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!-- saved from url=(0061)https://sites.cs.ucsb.edu/~trinabh/classes/w23/labs/lab3.html -->
+<html xml:lang="en" lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>CS170 Lab 3: Multi-threaded programming</title>
+<link rel="stylesheet" type="text/css" href="./CS170 Lab 3_ Multi-threaded programming_files/style.css">
+<link rel="stylesheet" type="text/css" href="./CS170 Lab 3_ Multi-threaded programming_files/labs.css">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<script type="text/javascript" src="./CS170 Lab 3_ Multi-threaded programming_files/util.js.download">
+</script>
+</head>
+<body>
+<h1>CS170 Lab 3: Multi-threaded programming</h1>
+<div id="topnavbar">
+<ul class="topnavlist">
+<li><a href="https://sites.cs.ucsb.edu/~trinabh/classes/w23/index.html">Home</a></li>
+<li><a href="https://sites.cs.ucsb.edu/~trinabh/classes/w23/syllabus.html">Schedule</a></li>
+<li><a href="https://sites.cs.ucsb.edu/~trinabh/classes/w23/labs.html">Labs</a></li>
+<li><a href="https://sites.cs.ucsb.edu/~trinabh/classes/w23/policies.html">Policies and grading</a></li>
+<li><a href="https://sites.cs.ucsb.edu/~trinabh/classes/w23/announcements.html">Announcements</a></li>
+</ul>
+</div>
+
+
+<h1>Lab 3: Multi-threaded programming</h1>
+<h2>Introduction</h2>
+
+<p>
+In this lab, you will implement a model of an online store.  Your
+model will support safe parallel updates to a central inventory
+database, which maintains stock of all items available for sale
+from the online store.  Updates to this inventory database will
+come from both suppliers (who add goods to the inventory and
+enable or disable deals on items, such as discounts and free
+shipping) and customers (who, by purchasing items from the online
+store, remove them from the inventory).  In the model,
+customers and suppliers will be represented by different threads,
+all executing in parallel.
+</p>
+
+<p>
+Though your store is only a model, the concepts you will learn
+and use throughout this lab could be applied similarly in a
+real-world setting.  Suppliers and customers would be on
+different computers, talking to a central inventory database over
+the Internet.  Requests sent over the Internet from suppliers and
+customers would be handled by different threads on the central
+inventory computer, and any operations on the database would have
+to be done with proper synchronization, just as in your model.
+</p>
+
+<p><b>Please note the following expectations:</b> 
+
+</p><ul>
+
+<li><i>Comments</i>. As with the last labs, you are asked to comment
+every block of code that you write. As a rough guideline, figure that
+you need a one-sentence comment every four lines or so (but this is
+rough; feel free to comment larger blocks). In these comments, you must
+explain the <i>purpose</i> of the code, rather than narrating the
+instruction that you gave to the computer. Examples of not-good comments
+are, "assign variable X to variable Y", "dereference pointer P", or "the
+following code is a for loop that iterates over the foo array." An
+example of a better comment would be, "We are closing the following file
+descriptors because [insert reason here]". To be clear: in the real
+world, it is terrible style to comment code that is obvious or
+self-documenting. We are departing from that because, this being a
+class, we want to make sure that you understand and can explain your
+code.</li>
+
+<li><i>Coding style</i>.
+You will have to pay
+attention to things like indentation and spacing (which need to be
+consistent), variable names (which need to be clear and consistent),
+repeated code (which needs to be avoided), spaghetti code (which needs to
+not happen), etc. Follow <a href="https://sites.cs.ucsb.edu/~trinabh/classes/w23/styleguide.html">this style guide</a>
+(also due to Eddie
+Kohler, adapted from <a href="http://cs61.seas.harvard.edu/wiki/2014/Style">here</a>).</li>
+
+<li><i>Concurrency commandments</i>.
+You will need to read <a href="https://sites.cs.ucsb.edu/~trinabh/classes/w23/labs/programming-with-threads.pdf">Coding
+Standards for Programming with Threads</a>, by Mike Dahlin. <b><i>You are required
+to follow these standards for this project</i></b>.
+In the real world, unclear multi-threaded code is
+particularly dangerous – because it is difficult or impossible to test. Moreover,
+if it's not clear, then the
+programmer who comes after you cannot debug it, maintain it, or add new
+features.
+</li>
+
+</ul>
+
+<p>Because it is impossible to determine the correctness of a multithreaded
+programming via testing, grading on this project will primarily be based
+on reading your code.  If your code is difficult to understand, then you
+will lose points (potentially lots of them), even if the program seems
+to work. 
+</p>
+
+
+<h3>Getting Started</h3>
+
+<p>We recommend doing this lab inside the development platform that you
+set up in the previous labs (the virtual devbox or the CSIL machines).
+However, this lab uses standard interfaces and tools, and as a
+consequence, you ought to be able to do the lab on OS X or even cygwin
+on Windows (though we have not tested this). As always, we will be
+grading on the standard lab platforms.</p>
+
+<p>From within the development platform that you have chosen (which, in the
+recommended cases, will be the virtual devbox or the CSIL machines),
+change to your lab directory, use
+Git to commit changes you've made since handing in lab 2 (if any),
+obtain the latest version of the course
+repository, and create a local branch called <tt>lab3</tt> based on 
+<tt>origin/lab3</tt> (which is our lab3 branch). The commands are as follows, but you
+may not need all of them (for example, if <code>git status</code> indicates that
+there are no changes to commit):
+</p><pre>$ <kbd>cd ~/cs170</kbd>
+$ <kbd>git commit -am 'my solution to lab2'</kbd>
+Created commit 254dac5: my solution to lab2
+ 3 files changed, 31 insertions(+), 6 deletions(-)
+$ <kbd>git pull</kbd>
+Already up-to-date.
+$ <kbd>git checkout -b lab3 origin/lab3</kbd>
+Branch lab3 set up to track remote branch refs/remotes/origin/lab3.
+Switched to a new branch "lab3"
+$ <kbd>cd lab3</kbd> 
+</pre>
+
+<h2>A Quick Introduction to C++</h2>
+
+<p>A very helpful way to think of shared state is as shared
+<i>objects</i>. We're
+therefore going to use C++, C's object-oriented descendant, for this
+project. 
+</p>
+
+<p>If you haven't used C++ before, don't worry. For the subset of C++ relevant to this project, the
+learning curve will be gentle (especially assuming you
+already know Java). Furthermore, we will provide template code to
+which you will add the details; this should largely insulate you from
+having to learn much C++ syntax.
+</p>
+
+<p>Read <a href="https://sites.cs.ucsb.edu/~trinabh/classes/w23/ref/c++.pdf">A Quick Introduction to C++</a>, and you should
+be good to go. Note that this document was written over a decade ago,
+so a few of the comments on the state of standards and tools are a bit
+out of date (for example, the document warns against using C++ templates
+because debuggers didn't understand them well back then; this warning
+is much less applicable today.) Nonetheless, it provides a good, quick
+overview of the key ideas to use (and some issues/pitfalls to avoid.)
+</p>
+
+
+<h2>Working with Threads</h2>
+
+<p>
+As noted earlier, you will need to read and follow <a href="https://sites.cs.ucsb.edu/~trinabh/classes/w23/labs/programming-with-threads.pdf">Coding
+Standards for Programming with Threads</a>, by Mike Dahlin.
+If you're shaky on monitors (we covered them in class, but you might
+want reinforcement), see <a href="http://pages.cs.wisc.edu/~remzi/OSTEP/threads-monitors.pdf">this
+chapter from OSTEP</a>.
+</p>
+
+<p>
+To simplify your task, we supply a simple thread package (written by
+Mike Dahlin)
+on top of the standard POSIX thread library (which is known as
+pthreads).
+The idea is to shield you from irrelevant
+detail. This
+way, you use the standard package but you also focus on the
+project at hand. However, you are not required to use
+the wrapper; you may instead use pthreads if you so
+choose.  The code for the simple thread package (which we will
+refer to hereafter as sthreads) we provide is in
+<tt>sthread.cpp</tt> and <tt>sthread.h</tt>.
+</p>
+
+<p>
+The package provides threads (<tt>sthread_t</tt>s),
+mutex locks (<tt>smutex_t</tt>s), and condition
+variables (<tt>scond_t</tt>s)
+as well as some other utility functions that you may
+need.  We suggest that you read over these functions 
+to see how they are used.  It may be helpful to write a couple of
+example programs using sthreads before starting this project.
+For more information, see the man pages for the pthreads
+library functions used in the <tt>sthread.cpp</tt> code.
+</p>
+
+<!--
+<p>
+In a pinch, you can use <tt>pthread_t</tt>s,
+<tt>pthread_mutex_t</tt>s and so on interchangeably with <tt>sthread_t</tt>s,
+<tt>smutex_t</tt>s and so on.  You may have to do this happen if you end up
+wanting to use a certain pthreads function which does not have a
+corresponding sthreads wrapper in <tt>sthread.c</tt>.
+</p>
+-->
+
+<p>
+You should keep the following in mind as you code these labs:
+</p><ul>
+<li>
+If you find that the problem is underspecified, please make
+reasonable assumptions and document them in the documentation file.
+</li>
+
+<li>
+You are required to adhere to the multi-threaded coding standards/rules
+discussed in class and above.  Code that fails to conform to these rules
+is incorrect and will receive little credit when this lab is graded.
+</li>
+
+<li>
+Code will be evaluated based on its correctness, clarity,
+and elegance. Strive for simplicity. Think before you code.
+</li>
+
+<!--
+<li>
+Write test cases for your code.  Just hacking at multi-threaded
+code and hoping it works is a sure way to produce code that
+doesn't work, or worse, code that seems to work but has subtle
+bugs that crop up in only a small fraction of executions.
+</li>
+-->
+
+<li>
+One of the most common
+mistakes we see on projects year after year is using <tt>sthread_sleep</tt> when
+you should be using <tt>scond_wait</tt>. The standards document above discusses this issue in more
+detail. This year, we don't want anyone to make this mistake, so be
+warned: seeing an <tt>sthread_sleep</tt> in your code in the wrong place is an easy way for a TA to
+conclude that you don't know how to write multithreaded programs, and the
+TAs will be instructed to deduct a large number of points from any project
+that uses <tt>sleep</tt> when it should <tt>wait</tt> on a condition variable. If you
+find yourself writing <tt>sleep</tt>, treat that as a red flag that you might be
+making a mistake. If you don't know when to use one and when to use
+the other, come to office hours, but don't start writing code!
+</li>
+
+<li>
+Before writing any code, think of
+different types of simple generic data structures
+(e.g., bounded buffer, readers/writers, ...). These particular data structures
+may (or may not) be directly useful for this project, but this flavor of
+data structure will be extremely useful.
+</li>
+</ul>
+<p></p>
+
+<h2>Part A: Task Queue and Coarse-Grained Store Synchronization</h2>
+
+<p>
+For our model, we will simulate a fixed number of customers
+and suppliers.  For each customer and each supplier, there will
+be a unique thread representing that customer or supplier.  We
+will often refer to these threads throughout this document as
+<i>worker threads</i>.  These worker threads will get jobs to
+work on from a <i>task queue</i>, which you will implement.
+There will be one queue for all customer threads
+and one queue for all supplier threads.  This
+task queue must allow for multiple worker threads to simultaneously
+attempt to add or remove jobs while still maintaining the
+integrity of the queue's internal data structures by using locks
+(i.e., your task queue must be <i>thread-safe</i>).
+</p>
+
+<p>
+It is a common pattern in multi-threaded programming to have a
+single (or small number of) task queue(s) for a large number of
+threads.  A thread-safe task queue makes the job of allocating
+work to threads (and having threads allocate work to other
+threads, should the case arise) easy to do and (relatively) easy
+to reason about.
+</p>
+
+<!--
+<p>
+Remember, you <b>must</b> follow the restrictive coding standards
+specified.  There are specific reasons for these rules: we
+believe that if you follow these rules, you are very likely to
+learn to write good multi-threaded code. Conversely, if you
+violate these rules, we fear that you may not learn this material
+as well. Code that fails to conform to these rules is incorrect
+and will receive little credit when this lab is
+graded.
+</p>
+-->
+
+<div class="required">
+<span class="header">Exercise 1.</span>
+Look through the queue interface in <tt>TaskQueue.h</tt> and the
+documentation for its methods in <tt>TaskQueue.cpp</tt>.  Fill out
+the rest of the members in <tt>class TaskQueue</tt> in
+<tt>TaskQueue.h</tt> to finish the definition of
+your task queue class, then implement the rest of the queue
+methods in <tt>TaskQueue.cpp</tt>.  You are welcome to use any
+standard C++ container to help build the functionality of your
+queue (such as a <tt>std::queue</tt> or <tt>std::deque</tt>), or
+you can create your own data structures (like a linked list) and
+add any needed helper structures to do the same.
+<p></p>
+<p>
+A task in the task queue is represented by a <tt>struct Task</tt>
+(also found in <tt>TaskQueue.h</tt>), which consists of a pointer
+to a function and an argument to be passed to that function.
+When a worker thread removes a task from the task queue, it
+should call the function given in the <tt>struct Task</tt> with
+the argument given in the <tt>Task</tt>.
+</p>
+Run <kbd>make</kbd> to make sure your queue code compiles.  For
+now, there's no executable to run.
+</div>
+
+<p>A task queue is little good to worker threads if there is no work
+available to be put on it.  We have provided some code to
+generate work requests to be put on your task queues in
+<tt>RequestGenerator.h</tt> and <tt>RequestGenerator.cpp</tt>.
+Become familiar with this code.  Specifically, there are two
+subclasses of the main <tt>class RequestGenerator</tt> that you
+should know the purpose of: <tt>class
+CustomerRequestGenerator</tt> and <tt>class
+SupplierRequestGenerator</tt>.  The former
+<tt>CustomerRequestGenerator</tt>, as its name would suggest,
+generates requests for customer threads to perform (such as
+buying items).  The latter <tt>SupplierRequestGenerator</tt>
+generates requests for supplier threads to perform (such as
+adding or removing items from inventory, or putting items on
+sale).  You will use these generator classes to implement
+task generator threads, which will produce work for customer and
+supplier threads.
+</p>
+
+<p>
+Before you start implementing any thread functions, however, you
+should actually have some threads running.  In the main source
+file for our simulator, <tt>estoresim.cpp</tt>, is a function
+called <tt>startSimulation</tt>.  This function kicks off all
+threads in the simulator (generators, customers, and suppliers)
+and then, after starting all threads, waits for them to
+finish.  When all threads have finished working, the simulation
+is complete.
+</p>
+
+<div class="required">
+<span class="header">Exercise 2.</span>
+Read the documentation for, and then implement, the
+<tt>startSimulation</tt> function in <tt>estoresim.cpp</tt>.  Use
+<tt>sthread_create</tt> to create threads.  The worker thread
+functions <tt>supplierGenerator</tt>, <tt>supplier</tt>,
+<tt>customerGenerator</tt> and <tt>customer</tt> all reside in
+<tt>estoresim.cpp</tt>.
+Use the provided <tt>class Simulation</tt> to keep track of task
+queues and the number of customers and suppliers.  When you have
+finished writing your code, run <kbd>make run-sim</kbd> to run
+the simulator.  You may want to have the threads produce some
+output to make sure that you are starting them correctly.
+<p></p>
+<p>
+Don't worry about the meaning of the <tt>fineMode</tt> variable
+in <tt>Simulation</tt> for now, just make sure it is set to the
+value passed in the parameter <tt>useFineMode</tt>.
+</p>
+You may also find it useful in this exercise, and in others
+throughout this lab, to
+call <tt>printf</tt> in some choice places (where worker threads
+start, for instance).  The code we provide you doesn't print
+anything to the terminal, and so when you run the simulator with
+<kbd>make run-sim</kbd>, you won't see any output unless you put
+the <tt>printf</tt>s in yourself.
+</div>
+
+<p>
+At the moment, all of the threads you have created start
+and then immediately stop, as none of their associated functions
+are implemented (they just return when called).  However, since
+you have actual threads running, you can proceed to implement the
+generator, customer, and supplier thread functions.  If you put
+<tt>printf</tt>s in these functions as suggested, you should see
+all the threads print to the terminal.
+</p>
+
+<div class="required">
+<span class="header">Exercise 3.</span>
+Implement the <tt>customer</tt>, <tt>supplier</tt>,
+<tt>supplierGenerator</tt>, and <tt>customerGenerator</tt>
+functions in <tt>estoresim.cpp</tt>.  Read the code referred to
+above (e.g. <tt>RequestGenerator.cpp</tt>) and the comments for
+these functions to get an idea of what they should be doing.  The
+generator functions should look similar to each other, as should
+the supplier and customer functions to each other.  Produce some
+output from these threads to make sure they're running and that
+jobs are being pushed between them properly.
+<p></p>
+<p>
+For the <tt>supplierGenerator</tt> and <tt>customerGenerator</tt>
+functions, you will also have to implement the
+<tt>enqueueStops</tt> method in <tt>RequestGenerator.cpp</tt>.
+</p>
+Run <kbd>make run-sim</kbd> to run the simulator.  You should see
+the output of your worker threads.
+You can stop the simulator by pressing
+<kbd>Control-C</kbd>.
+</div>
+
+<p>
+Now you have many customers and suppliers working on jobs
+generated by the generator threads.  But there is no inventory
+for items in the store, nor are any of the work functions
+produced by the request generators implemented.  So, for the
+moment, our simulator spawns many workers in parallel to do very
+little.  For the workers to have anything to work on, there
+should be an inventory of items to purchase from and add to.  To
+this end, we
+have provided the skeleton of this inventory for you as <tt>class
+EStore</tt>, in the files <tt>EStore.h</tt> and
+<tt>EStore.cpp</tt>.
+</p>
+
+<div class="required">
+<span class="header">Exercise 4.</span>
+Design and implement the <tt>EStore</tt> class, filling in all
+the method skeletons we provide and adding any new methods you
+may find necessary.  Read through all
+the provided comments in the files related to the <tt>EStore</tt>
+class (but don't worry about the <tt>buyManyItems</tt> method for
+now).  The <tt>EStore</tt> will have to keep track of many
+<tt>Item</tt>s and ensure that all modifications to
+<tt>Item</tt>s in the <tt>EStore</tt> are synchronized.
+<p></p>
+<p>
+You should implement the <tt>EStore</tt> as a monitor; that is,
+there should be a single lock on the entire store, which is
+acquired upon entering any of the store's methods and released
+upon exit.
+</p>
+<p>
+As a reminder, the <tt>buyItem</tt> method in <tt>EStore</tt>
+should <i>wait</i> for an item to become available or on
+discount if necessary.  So, if a customer comes in looking to buy
+an item outside of the given budget, the customer should wait until the
+item is being sold at a sufficiently high discount and then buy,
+instead of just immediately returning.
+</p>
+Run <kbd>make run-sim</kbd> to make sure your code compiles and
+doesn't have any segfault-inducing bugs in the constructor for
+<tt>class EStore</tt>.
+For the moment, no threads are actually interacting with the
+<tt>EStore</tt>, so if you put any <tt>printf</tt>s in its
+methods, you won't see them output anything just yet.
+</div>
+
+<p>
+There is only one piece remaining to make the simulator work now:
+the handlers for the jobs created by the request generators
+and pushed to the worker threads.  These jobs consist of adding
+and removing items from the <tt>EStore</tt> inventory or setting
+discounts on items (for suppliers) and of purchasing items (for
+customers).  We've provided skeletons for these handlers in
+<tt>RequestHandlers.cpp</tt>.  Before you implement these
+handlers, you may find it helpful to read through all the
+different kinds of requests that exist in <tt>Request.h</tt>.
+</p>
+
+<div class="required">
+<span class="header">Exercise 5.</span>
+Go through and implement each handler in
+<tt>RequestHandlers.cpp</tt> one-by-one.  Print a message at
+the beginning of each handler which contains the name of the
+handler and the fields of the request struct passed to it (you
+don't need to print the value of the <tt>store</tt> pointer).
+This will produce a trace of the work done by your threads as
+they process jobs.
+<p></p>
+<p>
+Your handler functions should largely make use of the methods you
+implemented previously in <tt>EStore</tt>.
+</p>
+<p>
+After implementing all the handlers (including <tt>stop_handler</tt>),
+your simulator may not terminate on
+its own.  This will happen in the case where a customer is
+blocked on buying an item, but the item never gets discounted
+enough for the customer to buy, which will happen sometimes and
+should be expected.
+In this case, you will still
+need to kill the simulator with <kbd>Control-C</kbd>.
+</p>
+Run <kbd>make run-sim</kbd> after you
+implement each handler and make sure that requests are being
+dispatched to your new handlers.
+</div>
+
+<p>
+Here's some example output from the staff solution to part A of the lab to
+give you an idea of what running your simulator should look like.
+You don't have to worry about matching our output format exactly.
+</p><pre>Handling AddItemReq: item_id - 77, quantity - 94, price - $6370.15, discount - 0.00
+Handling BuyItemReq: item_id - 83, budget - $14308.86
+Handling BuyItemReq: item_id - 35, budget - $33853.86
+Handling AddItemReq: item_id - 92, quantity - 22, price - $5167.49, discount - 0.00
+Handling BuyItemReq: item_id - 62, budget - $9900.27
+Handling AddItemReq: item_id - 90, quantity - 64, price - $5201.59, discount - 0.00
+Handling BuyItemReq: item_id - 26, budget - $6805.40
+Handling AddItemReq: item_id - 26, quantity - 37, price - $892.72, discount - 0.00
+...
+Handling ChangeItemPriceReq: item_id - 96, new_price - $7007.23
+Handling BuyItemReq: item_id - 46, budget - $19934.51
+Handling ShippingCostReq: new shipping cost - $29.21
+Handling BuyItemReq: item_id - 79, budget - $30974.88
+Handling AddItemReq: item_id - 64, quantity - 42, price - $8883.28, discount - 0.00
+...
+Handling StopHandlerReq: Quitting.
+Handling StopHandlerReq: Quitting.
+Handling StopHandlerReq: Quitting.
+</pre>
+<p></p>
+
+<p>
+You should now have a working store simulator.  Run
+<kbd>make run-sim</kbd> a few times and watch the output of your
+workers as they process jobs.  If you notice anything suspicious
+in the output, go back and check to make sure you did your
+synchronization correctly and that you are following the
+multi-threaded coding guidelines.
+</p>
+
+<h2>Part B: Fine-Grained Store Synchronization</h2>
+
+<p>
+In part A, you implemented a store simulator using <i>coarse-grained</i>
+synchronization: there was one lock on the entire <tt>EStore</tt>
+that kept concurrent accesses from stepping on each other, which
+effectively serialized execution of the program (as no two threads could modify
+the inventory in <tt>EStore</tt> at the same time).
+However, you might have noticed that you don't necessarily need
+to lock the entire inventory if two threads are trying to modify
+two <i>different</i> items in the inventory.  <!--
+IR: The performance mention here is superfluous, since we're not
+making the simulator "faster".
+
+While having one
+lock on the entire inventory is a good way to get your feet wet
+with multi-threaded programming, when implementing real systems, one must give
+consideration to performance <i>and</i> correctness. -->  Thus, in
+part B, we will explore an approach that exposes more parallelism, by
+using <i>fine-grained</i> locking. Instead of using one large lock
+on the entire <tt>EStore</tt>, you will use locks over smaller units of
+code.
+In this way, multiple
+threads that aren't touching the same data can operate on the
+inventory concurrently.
+<!--, relieving the serialization of execution
+suffered by the previous coarse-grained locking implementation.-->
+</p>
+
+<p>
+Keep in mind throughout the next exercises that you should be
+able to run the simulator using your old coarse-grained locking approach
+by running <kbd>make
+run-sim</kbd> and using your yet-to-be-implemented fine-grained
+locking approach
+by running <kbd>make run-sim-fine</kbd>.
+<!--
+<b>MW: This ``fast'' thing probably won't fly. Fine grained locking does not
+always mean ``faster''. In fact, this point was covered implicitly in
+lecture, and we'll keep returning to it. So ... probably a good idea to
+name it something else (unless there's concrete evidence in the output
+that the simulator runs faster, but I don't see that).</b>-->
+The latter command, as might
+be expected, runs the simulator in "fine-grained mode" (this
+is related to the mysterious <tt>fineMode</tt> variable you saw
+before, which is set to <tt>false</tt> with <kbd>make
+run-sim</kbd>, but set to <tt>true</tt> with <kbd>make
+run-sim-fine</kbd>).  You may
+want to abstract some of your locking with methods whose function
+varies depending on the value of <tt>fineMode</tt>.  To
+reiterate, <i>your simulator must use your coarse-grained locking
+approach
+from part A when we run <kbd>make run-sim</kbd> and use your new
+fine-grained locking approach to be done in part B when we run <kbd>make
+run-sim-fine</kbd></i>!
+</p>
+
+<!-- MW: why are we calling this run-sim-fast? the code may not in fact
+run faster. it depends on the available hardware, the I/O patterns, etc. -->
+<!-- IR: Explanation here of fine-grained locking?  Buh.  Suggest
+lock-per-item?  Buh! -->
+
+<div class="required">
+<span class="header">Exercise 6.</span>
+Change your <tt>EStore</tt> implementation to allow multiple
+threads to access different items at the same time.  If two
+threads try to access the same item at the same time, then only
+one should be allowed to modify the item at a time.
+<p></p>
+<p>
+Don't worry about modifying the implementation of
+<tt>buyItem</tt>.  In fine-grained mode, <tt>buyItem</tt> is not called.
+You will implement the fine-grained mode version of <tt>buyItem</tt>,
+called <tt>buyManyItems</tt>, in the next exercise.
+</p>
+Run <kbd>make run-sim-fine</kbd> to make sure your code still
+runs.  Since you are now running in fine-grained mode,
+<tt>BuyItem</tt> requests are not being generated; instead,
+<tt>BuyManyItems</tt> requests are generated.  This function is
+still unimplemented, so only suppliers will be making any
+modifications to the state of the <tt>EStore</tt> at the moment.
+</div>
+
+<p>
+To flex the new fine-grained locking features of the
+simulator, you must implement the handler and <tt>EStore</tt>
+functionality for the <tt>BuyManyItems</tt> request.  This
+request requires that many items be looked at (with
+synchronization!) and, if the right conditions hold, modified
+(i.e. purchased).
+</p>
+
+<div class="required">
+<span class="header">Exercise 7.</span>
+Implement the <tt>EStore</tt> method <tt>buyManyItems</tt> and
+its corresponding handler in <tt>RequestHandlers.cpp</tt>.  Make
+sure that, as with previous request handlers, you print out the
+name of the request and the fields of the request struct passed
+to the handler at the beginning of the <tt>buyManyItems</tt> handler.
+<p></p>
+Run <kbd>make run-sim-fine</kbd>.  You should now see
+<tt>buyManyItems</tt> requests being handled by threads.  You should also
+make sure that your old code still functions correctly with
+<kbd>make run-sim</kbd>.
+</div>
+
+<p>
+Here's some sample output from the staff solution to part B.  As
+before, your output doesn't have to look exactly like ours, but
+this should give you an idea of what we'd like to see when we run
+your simulator.
+</p><pre>Handling AddItemReq: item_id - 62, quantity - 91, price - $4901.27, discount - 0.00
+Handling BuyManyItemsReq: item_ids - 15 35 49 77 86 92 93 
+Handling BuyManyItemsReq: item_ids - 26 40 63 
+Handling AddItemReq: item_id - 36, quantity - 69, price - $53.11, discount - 0.00
+...
+Handling BuyManyItemsReq: item_ids - 21 29 35 37 58 74 93 95 
+Handling AddItemReq: item_id - 43, quantity - 30, price - $3360.28, discount - 0.00
+Handling BuyManyItemsReq: item_ids - 4 11 43 63 76 
+Handling BuyManyItemsReq: item_ids - 18 
+...
+Handling StopHandlerReq: Quitting.
+Handling StopHandlerReq: Quitting.
+Handling StopHandlerReq: Quitting.
+</pre>
+<p></p>
+
+<h2 id="handin">Handing in the lab</h2>
+
+
+<p>If you have not done so yet, commit your code.</p>
+
+<pre>$ <kbd>git status</kbd>  # see what files you changed
+$ <kbd>git diff</kbd>    # examine your changes
+$ <kbd>git commit -am "My solutions to lab3"</kbd>
+</pre>
+
+Then, follow these steps:
+
+<ul>
+<li> Make sure that you are on the <tt>lab3</tt> branch (and that the
+commit above went to the lab3 branch!).</li>
+<li> Make sure that you have filled out 
+<tt>answers.txt</tt>.</li>
+<li> Make sure you have answered all code exercises in the files,
+<b>and that your code is consistent with the expectations described
+in the <a href="https://sites.cs.ucsb.edu/~trinabh/classes/w23/labs/lab3.html#introduction">introduction</a></b>.</li>
+<li> Then upload a tarball or zip file of lab3 directory to GauchoSpace.
+
+<b>This ends the lab.</b>
+
+<hr>
+<p class="lastupdated">Last updated: 2020-10-05 15:44:09 -0700
+ [<a href="http://validator.w3.org/check?uri=referer">validate xhtml</a>]</p>
+
+
+</li></ul></body></html>
